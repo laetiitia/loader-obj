@@ -29,7 +29,7 @@
   ([model key val] ;;For :texture-name, rbg and weight doesn't change
    (case key
          :texture-name (assoc model key val)
-         :rbg (assoc model key (conj (get model key) val))
+         :rbg (assoc model key val)
          :else model))
   ([model k1 k2 val]
    (assoc model k1 (assoc (get model k1) k2 val)))) ;;For the maps of vertices, normals, faces and text_coord
@@ -85,9 +85,8 @@
   [model mtllib]
   (let [lines (with-open [r (io/reader mtllib)]
                 (vec (line-seq r)))]
-    (let [color (split-line (s/trim (first (filter #(re-matches #"Kd.*" %) lines))))]
-      (map (fn [n] (add-to-model model :rbg n)) (into [] (rest color))))))      
-;;(add-to-model model :rbg (into [] (rest color))))))
+    (let [color (split-line (first (filter #(re-matches #"Kd.*" %) lines)))]
+      (add-to-model model :rbg (into [] (map (fn [x] (Float/parseFloat x)) (rest color)))))))
 
 ;---------------- UPDATE MODEL -------------------
 
@@ -137,9 +136,9 @@
   [item]
   (print "texture-name : ")
   (println (get item :texture-name))
-  (print "rbg : [")
-  (map print (get item :rbg))
-  (print "] \nweight : ")
+  (print "rbg : ")
+  (print (get item :rbg))
+  (print "\nweight : ")
   (println (str (get item :weight)))
   (print "vertice : ")
   (p/pprint (get item :vertices))
