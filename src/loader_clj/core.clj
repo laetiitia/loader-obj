@@ -32,7 +32,7 @@
          :rbg (assoc model key (conj (get model key) val))
          :else model))
   ([model k1 k2 val]
-   (assoc model k1 (assoc (get model k1) k2 val)))) ;;For the maps of vertices, normals, faces,
+   (assoc model k1 (assoc (get model k1) k2 val)))) ;;For the maps of vertices, normals, faces and text_coord
 
 
 ;------------- HANDLE OBJ --------------
@@ -60,7 +60,7 @@
                                                              (Float/parseFloat v)
                                                              (Float/parseFloat "0")])))
 
-(defn- face
+(defn- create-face
   "Create a list of (vertice normal text_cood). "
   [args]
   (into [] (map (fn [arg] (map #(if (empty? %)
@@ -71,26 +71,33 @@
   "Add to the model the face definitions in faces."
   [model & args]
   (let [nb (count (get model :faces))]
-    (add-to-model model :faces (keyword (str "f" nb)) (face args))))
+    (add-to-model model :faces (keyword (str "f" nb)) (create-face args))))
 
 (defn- handle-usemtl
   "Add to the model the Material use in texture-name."
   [model mtl]
   (add-to-model model :texture-name mtl))
 
+
+(declare split-line)
 (defn- handle-mtllib
   "Acces to mtllib in order to get rbg"
-  [model mllib]
-  (println mllib)) ;;ToDo
+  [model mtllib]
+  (let [lines (with-open [r (io/reader mtllib)]
+                (vec (line-seq r)))]
+    (let [color (split-line (s/trim (first (filter #(re-matches #"Kd.*" %) lines))))]
+      (map (fn [n] (add-to-model model :rbg n)) (into [] (rest color))))))      
+;;(add-to-model model :rbg (into [] (rest color))))))
 
-;-----------------------------------
+;---------------- UPDATE MODEL -------------------
 
 (def ^:private handlers
   {:v handle-v
    :vn handle-vn
    :vt handle-vt
    :f handle-f
-   :usemtl handle-usemtl})
+   :usemtl handle-usemtl
+   :mtllib handle-mtllib})
 
 
 (defn- update-model
@@ -108,17 +115,22 @@
   [string]
   (s/replace string #"#.*" ""))
 
-(defn- change-line
+(defn- split-line
   "Change a line into a vector using whitespace as a delimiter."
   [string]
-  (let [vec (s/split string #"\s+")]
-    (assoc vec 0 (keyword (first vec))))) ;The 1st element (keyword) define
+  (let [v (s/split string #"\s+")]
+    (assoc v 0 (keyword (first v))))) ;The 1st element (keyword) define
                                           ;the vector (use in handlers)
 
 (defn- isValid?
   "Check if the line is what we want."
   [[kw & data]]
   (contains? handlers kw))
+
+
+;---------------------------------------
+;---------------- PRINT ----------------
+;---------------------------------------
 
 (defn- show
   "Print the model"
@@ -153,18 +165,13 @@
                (transduce (comp (map delete-comment)
                               (map s/trim)
                               (remove empty?)
-                              (map change-line)
+                              (map split-line)
                               (filter isValid?))
                         update-model
                         model
                         (line-seq r)))]
      (show item)))
 
-(defn autre
-  [file]
-  (let [string (with-open [r (io/reader file)]
-                 (println (line-seq r)))]
-    string))
 
 ;---------------------------------------
 ;---------------- Main -----------------
