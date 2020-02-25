@@ -24,8 +24,9 @@
 ;---------------------------------------
 ;-------------- FUNCTIONS --------------
 ;---------------------------------------
+
 (defn- add-to-model
-  "Add a value in the model."
+  "Add a value in the model"
   ([model key val] ;;For :texture-name, rbg and weight doesn't change
    (case key
          :texture-name (assoc model key val)
@@ -37,7 +38,7 @@
 
 ;------------- HANDLE OBJ --------------
 (defn- handle-v
-  "Add to the model the node in vertices."
+  "Add to the model the node in vertices"
   [model x y z]
   (let [nb (count (get model :vertices))]
     (add-to-model model :vertices (keyword (str "v" nb)) [(Float/parseFloat x)
@@ -45,7 +46,7 @@
                                                           (Float/parseFloat z)])))
 
 (defn- handle-vn
-  "Add to the model the normal in normals."
+  "Add to the model the normal in normals"
   [model x y z]
   (let [nb (count (get model :normals))]
     (add-to-model model :normals (keyword (str "vn" nb)) [(Float/parseFloat x)
@@ -53,28 +54,25 @@
                                                           (Float/parseFloat z)])))
 
 (defn- handle-vt
-  "Add to the model the texture coordinates in text_coord."
+  "Add to the model the texture coordinates in text_coord"
   [model u v]
   (let [nb (count (get model :text_coord))]
     (add-to-model model :text_coord (keyword (str "vt" nb)) [(Float/parseFloat u)
-                                                             (Float/parseFloat v)
-                                                             (Float/parseFloat "0")])))
+                                                             (Float/parseFloat v)])))
 
 (defn- create-face
-  "Create a list of (vertice normal text_cood). "
+  "Create a list of (vertice text_cood normal)"
   [args]
-  (into [] (map (fn [arg] (map #(if (empty? %)
-                                  nil
-                                  (Integer/parseInt %)) (s/split arg #"/"))) args)))
+  (into [] (map (fn [arg] (into [] (map #(Integer/parseInt %) (into [] (s/split arg #"/"))))) args)))
 
 (defn- handle-f
-  "Add to the model the face definitions in faces."
+  "Add to the model the face definitions in faces"
   [model & args]
   (let [nb (count (get model :faces))]
     (add-to-model model :faces (keyword (str "f" nb)) (create-face args))))
 
 (defn- handle-usemtl
-  "Add to the model the Material use in texture-name."
+  "Add to the model the Material use in texture-name"
   [model mtl]
   (add-to-model model :texture-name mtl))
 
@@ -110,19 +108,19 @@
 ;------- NORMALIZATION OBJ -------------
 ;---------------------------------------
 (defn- delete-comment
-  "Delete an OBJ comment in the string."
+  "Delete an OBJ comment in the string"
   [string]
   (s/replace string #"#.*" ""))
 
 (defn- split-line
-  "Change a line into a vector using whitespace as a delimiter."
+  "Change a line into a vector using whitespace as a delimiter"
   [string]
   (let [v (s/split string #"\s+")]
     (assoc v 0 (keyword (first v))))) ;The 1st element (keyword) define
                                           ;the vector (use in handlers)
 
 (defn- isValid?
-  "Check if the line is what we want."
+  "Check if the line is what we want"
   [[kw & data]]
   (contains? handlers kw))
 
@@ -158,7 +156,7 @@
 ;
 
 (defn load-model
-  "Load an OBJ file to a model."
+  "Load an OBJ file to a model"
   [file]
   (let [item (with-open [r (io/reader file)]
                (transduce (comp (map delete-comment)
