@@ -11,6 +11,8 @@
 ;---------------------------------------
 
 ;; Initial model state
+
+
 (def ^:private model
   {:texture-name ""
    :rbg []
@@ -25,13 +27,14 @@
 ;-------------- FUNCTIONS --------------
 ;---------------------------------------
 
+
 (defn- add-to-model
   "Add a value in the model"
   ([model key val] ;;For :texture-name, rbg and weight doesn't change
    (case key
-         :texture-name (assoc model key val)
-         :rbg (assoc model key val)
-         :else model))
+     :texture-name (assoc model key val)
+     :rbg (assoc model key val)
+     :else model))
   ([model k1 k2 val]
    (assoc model k1 (assoc (get model k1) k2 val)))) ;;For the maps of vertices, normals, faces and text_coord
 
@@ -76,15 +79,13 @@
   [model mtl]
   (add-to-model model :texture-name mtl))
 
-
 (declare split-line)
 (defn- handle-mtllib
   "Acces to mtllib in order to get rbg"
   [model mtllib]
-  (let [lines (with-open [r (io/reader mtllib)]
-                (vec (line-seq r)))]
-    (let [color (split-line (first (filter #(re-matches #"Kd.*" %) lines)))]
-      (add-to-model model :rbg (into [] (map (fn [x] (Float/parseFloat x)) (rest color)))))))
+  (let [lines (with-open [r (io/reader mtllib)] (vec (line-seq r)))
+        color (split-line (first (filter #(re-matches #"Kd.*" %) lines)))]
+    (add-to-model model :rbg (into [] (map (fn [x] (Float/parseFloat x)) (rest color))))))
 
 ;---------------- UPDATE MODEL -------------------
 
@@ -95,7 +96,6 @@
    :f handle-f
    :usemtl handle-usemtl
    :mtllib handle-mtllib})
-
 
 (defn- update-model
   "Update the model using the handlers"
@@ -129,6 +129,7 @@
 ;---------------- PRINT ----------------
 ;---------------------------------------
 
+
 (defn- show
   "Print the model"
   [item]
@@ -160,19 +161,21 @@
   [file]
   (let [item (with-open [r (io/reader file)]
                (transduce (comp (map delete-comment)
-                              (map s/trim)
-                              (remove empty?)
-                              (map split-line)
-                              (filter isValid?))
-                        update-model
-                        model
-                        (line-seq r)))]
-     (show item)))
+                                (map s/trim)
+                                (remove empty?)
+                                (map split-line)
+                                (filter isValid?))
+                          update-model
+                          model
+                          (line-seq r)))]
+    (show item)))
 
 
 ;---------------------------------------
 ;---------------- Main -----------------
 ;---------------------------------------
+
+
 (defn -main
   [& args]
   (if-not (empty? args)
