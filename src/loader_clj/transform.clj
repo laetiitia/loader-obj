@@ -21,7 +21,7 @@
 (defn- vec-remove
   "Remove an element in coll (thanks to a position)"
   [pos coll]
-  (vec (concat (subvec coll 0 pos) (subvec coll (inc pos)))))
+  (vec (concat (subvec (into [] coll) 0 pos) (subvec (into [] coll) (inc pos)))))
 
 (defn- getV
   "Get nodes of a face"
@@ -55,14 +55,14 @@
   "Transform :faces of the model into :faces of a mesh"
   ([mapFaces] (transFaces (vals mapFaces) faces))
   ([list res]
-   (if (seq? list)
-     (let [s (getV (first list))
-           f (keyword (str "f" (first (getVn (first list)))))
-           newList (vec-remove 0 list)]
-       (if (contains? res f)
-         (transFaces newList (assoc res f (concat s (get res f))))
-         (transFaces newList (assoc res f s))))
-     res)))
+    (if (seq list)
+      (let [s (getV (first list))
+            f (keyword (str "f" (first (getVn (first list)))))
+            newList (vec-remove 0 list)]
+        (if (contains? res f)
+          (transFaces newList (assoc res f (into [] (concat s (get res f)))))
+          (transFaces newList (assoc res f (into [] s)))))
+      res)))
 
 
 
