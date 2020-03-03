@@ -4,15 +4,9 @@
             [clojure.pprint :as p])
   (:gen-class))
 
-
-
 ;---------------------------------------
 ;-------------- STRUCTURE --------------
 ;---------------------------------------
-
-;; Initial model state
-
-
 (def ^:private model
   {:texture-name ""
    :rbg []
@@ -22,12 +16,9 @@
    :faces {}
    :text_coord {}})
 
-
 ;---------------------------------------
 ;-------------- FUNCTIONS --------------
 ;---------------------------------------
-
-
 (defn- add-to-model
   "Add a value in the model"
   ([model key val] ;;For :texture-name, rbg and weight doesn't change
@@ -88,7 +79,6 @@
     (add-to-model model :rbg (into [] (map (fn [x] (Float/parseFloat x)) (rest color))))))
 
 ;---------------- UPDATE MODEL -------------------
-
 (def ^:private handlers
   {:v handle-v
    :vn handle-vn
@@ -124,12 +114,9 @@
   [[kw & data]]
   (contains? handlers kw))
 
-
 ;---------------------------------------
 ;---------------- PRINT ----------------
 ;---------------------------------------
-
-
 (defn- show
   "Print the model"
   [item]
@@ -147,6 +134,50 @@
   (p/pprint (get item :faces))
   (print "text_coord : ")
   (p/pprint (get item :text_coord)))
+
+;---------------------------------------
+;------------- TRANSFORM ---------------
+;---------------------------------------
+(defn- transNormal
+  "Transform :normals of the model into :normals of a mesh"
+  [normals n]
+  (loop [ks (keys normals), res {}]
+    (if (seq ks)
+      (recur (rest ks) (assoc res (first ks) (into [] (reduce concat (repeat n (get normals (first ks)))))))
+      res)))
+
+(defn- getVn
+  "Get normals of a face"
+  [f]
+  (into [] (map #(first (rest (rest %))) f)))
+
+(defn- addVt
+  "Add coordinates texttures to the structure (maps)"
+  [tc res vts kw]
+  (if (seq vts)
+    (addVt tc (assoc res kw (into [] (concat (get res kw) (get tc (keyword (str "vt" (first vts))))))) (rest vts) kw)
+    res))
+
+(defn- transFnT
+  "Transform :faces and :text_coord of the model into a mesh"
+  ([mapFaces textures] (transFnT textures (vals mapFaces) {} {}))
+  ([tc list res coord]
+   (if (seq list)
+     (let [s (map #(first %) (first list)) ;Get nodes of a face
+           f (keyword (str "f" (first (getVn (first list)))))
+           newList (rest list)]
+       (transFnT tc newList (assoc res f (into [] (concat s (get res f)))) (addVt tc coord s f)))
+     [res coord])))
+
+(defn transformModel
+  "Transform model of loader into a correct mesh"
+  [model]
+  (let [[f t] (transFnT (get model :faces) (get model :text_coord))
+        n (transNormal (get model :normals) (count (set (get f :f1))))]
+    (-> model
+        (assoc :faces f)
+        (assoc :normals n)
+        (assoc :text_coord t))))
 
 ;---------------------------------------
 ;------------- LOADER OBJ --------------
@@ -168,17 +199,15 @@
                           update-model
                           model
                           (line-seq r)))]
-    (show item)))
-
+    (show (transformModel item))))
 
 ;---------------------------------------
 ;---------------- Main -----------------
 ;---------------------------------------
-
-
 (defn -main
   [& args]
   (if-not (empty? args)
     (doseq [arg *command-line-args*]
       (load-model arg))
     (throw (Exception. "Must have at least one argument!"))))
+

@@ -35,7 +35,7 @@
    (if (seq list)
      (let [s (map #(first %) (first list)) ;Get nodes of a face
            f (keyword (str "f" (first (getVn (first list)))))
-           newList (vec-remove 0 list)]
+           newList (rest list)]
        (if (contains? res f)
          (transFaces newList (assoc res f (into [] (concat s (get res f)))))
          (transFaces newList (assoc res f (into [] s)))))
@@ -68,10 +68,9 @@
    (if (seq list)
      (let [s (map #(first %) (first list)) ;Get nodes of a face
            f (keyword (str "f" (first (getVn (first list)))))
-           newList (vec-remove 0 list)]
+           newList (rest list)]
        (transFnT tc newList (assoc res f (into [] (concat s (get res f)))) (addVt tc coord s f)))
      [res coord])))
-
 
 ;---------------------------------------
 ;-------------- TRANSFORM --------------
@@ -147,6 +146,4 @@
             :vt4 [0.375 0.75]
             :vt13 [0.125 0.75]
             :vt1 [0.875 0.5]})
-
-
 
