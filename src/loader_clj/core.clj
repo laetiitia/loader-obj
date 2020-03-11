@@ -35,7 +35,7 @@
   "Add to the model the node in vertices"
   [model x y z]
   (let [nb (count (get model :vertices))]
-    (add-to-model model :vertices (keyword (str "v" nb)) [(Float/parseFloat x)
+    (add-to-model model :vertices nb [(Float/parseFloat x)
                                                           (Float/parseFloat y)
                                                           (Float/parseFloat z)])))
 
@@ -43,7 +43,7 @@
   "Add to the model the normal in normals"
   [model x y z]
   (let [nb (count (get model :normals))]
-    (add-to-model model :normals (keyword (str "vn" nb)) [(Float/parseFloat x)
+    (add-to-model model :normals nb [(Float/parseFloat x)
                                                           (Float/parseFloat y)
                                                           (Float/parseFloat z)])))
 
@@ -51,7 +51,7 @@
   "Add to the model the texture coordinates in text_coord"
   [model u v]
   (let [nb (count (get model :text_coord))]
-    (add-to-model model :text_coord (keyword (str "vt" nb)) [(Float/parseFloat u)
+    (add-to-model model :text_coord nb [(Float/parseFloat u)
                                                              (Float/parseFloat v)])))
 
 (defn- create-face
@@ -63,7 +63,7 @@
   "Add to the model the face definitions in faces"
   [model & args]
   (let [nb (count (get model :faces))]
-    (add-to-model model :faces (keyword (str "f" nb)) (create-face args))))
+    (add-to-model model :faces nb (create-face args))))
 
 (defn- handle-usemtl
   "Add to the model the Material use in texture-name"
@@ -123,13 +123,11 @@
   (print "texture-name : ")
   (println (get item :texture-name))
   (print "rbg : ")
-  (print (get item :rbg))
-  (print "\nweight : ")
-  (println (str (get item :weight)))
+  (println (get item :rbg))
   (print "vertice : ")
-  (p/pprint (get item :vertices))
+  (p/pprint (into (sorted-map) (get item :vertices)))
   (print "normals : ")
-  (p/pprint (get item :normals))
+  (println (get item :normals))
   (print "faces : ")
   (p/pprint (get item :faces))
   (print "text_coord : ")
@@ -141,39 +139,46 @@
 (defn- transNormal
   "Transform :normals of the model into :normals of a mesh"
   [normals n]
-  (loop [ks (keys normals), res {}]
-    (if (seq ks)
-      (recur (rest ks) (assoc res (first ks) (into [] (reduce concat (repeat n (get normals (first ks)))))))
+  (loop [ks (keys normals), res {}, nb n]
+    (if (and (seq ks) (seq nb))
+      (recur (rest ks) (assoc res (first ks) (into [] (reduce concat (repeat (first nb) (get normals (first ks)))))) (rest nb))
       res)))
+
+(defn- addVt
+"Add coordinates texttures to the structure (maps)"
+[tc res vt keyw acc]
+(if (seq vt)
+  (if (contains? acc (first vt))
+    (addVt tc res (rest vt) keyw acc)
+    (addVt tc (assoc res keyw (into [] (concat (get res keyw) (get tc (first vt)))))
+           (rest vt) keyw (conj acc (first vt))))
+  [res acc]))
+
 
 (defn- getVn
   "Get normals of a face"
   [f]
   (into [] (map #(first (rest (rest %))) f)))
 
-(defn- addVt
-  "Add coordinates texttures to the structure (maps)"
-  [tc res vts kw]
-  (if (seq vts)
-    (addVt tc (assoc res kw (into [] (concat (get res kw) (get tc (keyword (str "vt" (first vts))))))) (rest vts) kw)
-    res))
-
 (defn- transFnT
-  "Transform :faces and :text_coord of the model into a mesh"
-  ([mapFaces textures] (transFnT textures (vals mapFaces) {} {}))
-  ([tc list res coord]
-   (if (seq list)
-     (let [s (map #(first %) (first list)) ;Get nodes of a face
-           f (keyword (str "f" (first (getVn (first list)))))
-           newList (rest list)]
-       (transFnT tc newList (assoc res f (into [] (concat s (get res f)))) (addVt tc coord s f)))
-     [res coord])))
+"Transform :faces and :text_coord of the model into a mesh"
+([mapFaces textures] (transFnT textures (vals mapFaces) {} {} {}))
+([tc list res coord acc]
+ (if (seq list)
+   (let [face (first list)
+         v (map #(dec %) (map #(first %) face)) ;Get nodes of a face
+         f (first (getVn face))
+         vt (map #(first (rest %)) face)
+         [coord2 acc2] (addVt tc coord v f (get acc f #{}))]
+     (transFnT tc (rest list) (assoc res f (into [] (concat v (get res f)))) ;Add indices of a face
+               coord2 (assoc acc f acc2)))
+   [res coord])))
 
 (defn transformModel
   "Transform model of loader into a correct mesh"
   [model]
   (let [[f t] (transFnT (get model :faces) (get model :text_coord))
-        n (transNormal (get model :normals) (count (set (get f :f1))))]
+        n (transNormal (get model :normals) (map #(count %) (vals (into (sorted-map) (get model :faces)))))]
     (-> model
         (assoc :faces f)
         (assoc :normals n)
@@ -199,7 +204,7 @@
                           update-model
                           model
                           (line-seq r)))]
-    (show (transformModel item))))
+    (show  (transformModel item))))
 
 ;---------------------------------------
 ;---------------- Main -----------------
