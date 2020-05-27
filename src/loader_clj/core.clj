@@ -203,7 +203,7 @@
     (if (seq face)
       (let [ind (first face)]
         (if (get acc (first face))
-          (recur (rest face) (vec (concat resV (get vs ind))) (conj resF (get acc ind)) acc cpt)
+          (recur (rest face) resV (conj resF (get acc ind)) acc cpt)
           (recur (rest face) (vec (concat resV (get vs ind))) (conj resF cpt) (assoc acc ind cpt) (inc cpt))))
       [resV, resF])))
 
