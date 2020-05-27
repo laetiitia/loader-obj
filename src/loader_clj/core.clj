@@ -8,7 +8,7 @@
 ;-------------- STRUCTURE --------------
 ;---------------------------------------
 (def ^:private model
-  {:texture-name ""
+  {:texture-name []
    :rbg []
    :weight 1
    :vertices {}
@@ -21,15 +21,12 @@
 ;---------------------------------------
 (defn- add-to-model
   "Add a value in the model"
-  ([model key val] ;;For :texture-name, rbg and weight doesn't change
-   (case key
-     :texture-name (assoc model key val)
-     :rbg (assoc model key val)
-     :else model))
+  ([model key val] 
+    (assoc model key (conj (get model key) val)))
   ([model k1 k2 val]
    (assoc model k1 (assoc (get model k1) k2 val)))) ;;For the maps of vertices, normals, faces and text_coord
 
-
+(assoc {} :key 1)
 ;------------- HANDLE OBJ --------------
 (defn- handle-v
   "Add to the model the node in vertices"
@@ -75,10 +72,16 @@
   "Acces to mtllib in order to get rbg"
   [model mtllib]
   (let [lines (with-open [r (io/reader mtllib)] (vec (line-seq r)))
-        color (split-line (first (filter #(re-matches #"Kd.*" %) lines)))]
-    (add-to-model model :rbg (into [] (map (fn [x] (Float/parseFloat x)) (rest color))))))
+        colors (filter #(re-matches #"Kd.*" %) lines)]
+    (loop [l colors, mod model]
+      (if (seq l)
+        (recur (rest l) (add-to-model mod :rbg (into [] (map (fn [x] (Float/parseFloat x)) (rest (split-line (first l)))))))
+        mod))))
 
 ;---------------- UPDATE MODEL -------------------
+
+; The list of informations in obj file
+; that we need to handle
 (def ^:private handlers
   {:v handle-v
    :vn handle-vn
@@ -87,6 +90,7 @@
    :usemtl handle-usemtl
    :mtllib handle-mtllib})
 
+; Gather informations in our model
 (defn- update-model
   "Update the model using the handlers"
   ([model] model)
@@ -97,6 +101,9 @@
 ;---------------------------------------
 ;------- NORMALIZATION OBJ -------------
 ;---------------------------------------
+
+; In order to get informations of the obj file
+; without the comments 
 (defn- delete-comment
   "Delete an OBJ comment in the string"
   [string]
@@ -106,9 +113,10 @@
   "Change a line into a vector using whitespace as a delimiter"
   [string]
   (let [v (s/split string #"\s+")]
-    (assoc v 0 (keyword (first v))))) ;The 1st element (keyword) define
-                                          ;the vector (use in handlers)
+    (assoc v 0 (keyword (first v))))) ;The 1st element (keyword) define the vector (use in handlers)
 
+; Check if there is a information that can be 
+; handle by our functions 
 (defn- isValid?
   "Check if the line is what we want"
   [[kw & data]]
@@ -136,6 +144,12 @@
 ;---------------------------------------
 ;------------- TRANSFORM ---------------
 ;---------------------------------------
+
+
+; Each face have a number of vertices that have the same normal 
+; (so we use repeat) 
+;  * normals is the normals of the model that will be change
+;  * n is the sequence 
 (defn- transNormal
   "Transform :normals of the model into :normals of a mesh"
   [normals n]
@@ -167,7 +181,7 @@
  (if (seq list)
    (let [face (first list)
          v (map #(dec %) (map #(first %) face)) ;Get nodes of a face
-         f (first (getVn face))
+         f (first (getVn face)) ;Get number of the face
          vt (map #(first (rest %)) face)
          [coord2 acc2] (addVt tc coord v f (get acc f #{}))]
      (transFnT tc (rest list) (assoc res f (into [] (concat v (get res f)))) ;Add indices of a face
@@ -178,11 +192,12 @@
   "Transform model of loader into a correct mesh"
   [model]
   (let [[f t] (transFnT (get model :faces) (get model :text_coord))
-        n (transNormal (get model :normals) (map #(count %) (vals (into (sorted-map) (get model :faces)))))]
+        n (transNormal (get model :normals) (map #(count (set %)) (vals (into (sorted-map) f))))]
     (-> model
         (assoc :faces f)
         (assoc :normals n)
         (assoc :text_coord t))))
+
 
 ;---------------------------------------
 ;------------- LOADER OBJ --------------
@@ -214,5 +229,5 @@
   (if-not (empty? args)
     (doseq [arg *command-line-args*]
       (load-model arg))
-    (throw (Exception. "Must have at least one argument!"))))
+    (throw (Exception. "Must give at least the file path."))))
 
