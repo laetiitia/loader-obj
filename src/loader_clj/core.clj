@@ -8,9 +8,9 @@
 ;-------------- STRUCTURE --------------
 ;---------------------------------------
 (def ^:private model
-  {:texture-name []
+  {:filename ""
+   :texture-name ""
    :rbg []
-   :weight 1
    :vertices {}
    :normals {}
    :faces {}
@@ -22,11 +22,13 @@
 (defn- add-to-model
   "Add a value in the model"
   ([model key val]
-   (assoc model key (conj (get model key) val)))
+   (case key
+     :rbg (assoc model key (conj (get model key) val))
+     (assoc model key val)))
   ([model k1 k2 val]
    (assoc model k1 (assoc (get model k1) k2 val)))) ;;For the maps of vertices, normals, faces and text_coord
 
-(assoc {} :key 1)
+
 ;------------- HANDLE OBJ --------------
 (defn- handle-v
   "Add to the model the node in vertices"
@@ -67,27 +69,53 @@
   [model mtl]
   (add-to-model model :texture-name mtl))
 
+
+
+;---------------- HANDLE MTL -------------------
+
+; In the obj file only the name of the mtl is
+; written but not the full path 
+(defn- getMtlPath
+  "Get the right mtl path file according to the file .obj"
+  [model file]
+  (let [path (s/split (get model :filename) #"/")]
+    (if (> (count path) 1)
+      (s/join "/" (conj (pop path) file))
+      file)))
+
 (declare split-line)
+(defn- getColors
+  "Get informations about colors of a mtl file"
+  [model filter]
+  (loop [l filter, mod model]
+    (if (seq l)
+      (recur (rest l) (add-to-model mod :rbg (into [] (map (fn [x] (Float/parseFloat x)) (rest (split-line (first l)))))))
+      mod)))
+
+
 (defn- handle-mtllib
   "Acces to mtllib in order to get rbg"
   [model mtllib]
-  (let [lines (with-open [r (io/reader mtllib)] (vec (line-seq r)))
-        colors (filter #(re-matches #"Kd.*" %) lines)]
-    (loop [l colors, mod model]
-      (if (seq l)
-        (recur (rest l) (add-to-model mod :rbg (into [] (map (fn [x] (Float/parseFloat x)) (rest (split-line (first l)))))))
-        mod))))
+  (let [mtl (getMtlPath model mtllib)
+        lines (with-open [r (io/reader mtl)] (vec (line-seq r)))
+        colors (filter #(re-matches #"Kd.*" %) lines)
+        textures (filter #(re-matches #"map_Kd.*" %) lines)]
+    (if (seq textures)
+      (handle-usemtl (getColors model colors) (second (split-line (first textures))))
+      (getColors model colors))))
+
+
 
 ;---------------- UPDATE MODEL -------------------
 
 ; The list of informations in obj file
-; that we need to handle
+; that we need to handle 
+; fo example, :usemtl handle-usemtl
 (def ^:private handlers
   {:v handle-v
    :vn handle-vn
    :vt handle-vt
    :f handle-f
-   :usemtl handle-usemtl
    :mtllib handle-mtllib})
 
 ; Gather informations in our model
@@ -128,6 +156,8 @@
 (defn- show
   "Print the model"
   [item]
+  (print "filename : ")
+  (println (get item :filename))
   (print "texture-name : ")
   (println (get item :texture-name))
   (print "rbg : ")
@@ -214,20 +244,11 @@
 (defn- transVertices
   "Transforme Vertices and Face according to the update"
   ([f vs]
-  (loop [size (map #(count (set %)) (vals (into (sorted-map) f))), k (keys (into (sorted-map) f)), resV [], resF {}, n 0]
-    (if (and (seq k) (seq size))
-      (let [[v face] (modifVertices (get f (first k)) vs n)]
-        (recur (rest size) (rest k) (conj resV v) (assoc resF (first k) face) (+ n (first size))))
-      [resV, resF]))))
-
-
-
-
-
-
-(if (get {1 "a"} 1)
-  :ok
-  :nil)
+   (loop [size (map #(count (set %)) (vals (into (sorted-map) f))), k (keys (into (sorted-map) f)), resV [], resF {}, n 0]
+     (if (and (seq k) (seq size))
+       (let [[v face] (modifVertices (get f (first k)) vs n)]
+         (recur (rest size) (rest k) (conj resV v) (assoc resF (first k) face) (+ n (first size))))
+       [resV, resF]))))
 
 
 (defn transformModel
@@ -255,14 +276,15 @@
 (defn load-model
   "Load an OBJ file to a model"
   [file]
-  (let [item (with-open [r (io/reader file)]
+  (let [mymodel (add-to-model model :filename file)
+        item (with-open [r (io/reader file)]
                (transduce (comp (map delete-comment)
                                 (map s/trim)
                                 (remove empty?)
                                 (map split-line)
                                 (filter isValid?))
                           update-model
-                          model
+                          mymodel
                           (line-seq r)))]
     (show  (transformModel item))))
 
